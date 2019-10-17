@@ -50,5 +50,5 @@ video.addEventListener('play', () =>
     const highest_prob = detections[0]["expressions"].asSortedArray()[0].expression
     //const emotions = detections[0]["expressions"];
     emoji_img.src = emotion_dict[highest_prob]
-  }, 1000)
+  }, 100)
 })
