@@ -1,54 +1,109 @@
-const video = document.getElementById('video')
-const emoji_img = document.getElementById('expression_emoji')
+let animationTimer = null;
+let faceDetectionSupported = false;
+let numberOfFaces = 0;
+let emojiBoxes = [];
 
-Promise.all([
-  faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
-  faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
-  faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
-  faceapi.nets.faceExpressionNet.loadFromUri('/models')
-]).then(startVideo)
+const video = document.getElementById('webcam');
+const emoji_img = document.getElementById('expression_emoji');
+
+const emojiMap = {
+    happy: '😄',
+    sad: '😭',
+    surprised: '😯',
+    angry: '😡',
+    fearful: '😱',
+    neutral: '🎃',
+    disgusted: '🤢'
+}
+
+const faceDetector = new faceapi.TinyFaceDetectorOptions();
+
+function showEmoji(index, expression, x = 0, y = 0, height, width) {
+    const emoji = emojiMap[expression] || emojiMap.neutral;
+    const topAdjustment = 0;
+    const fontSize = height / 10;
+
+    let emojiBox = emojiBoxes[index];
+
+    if (!emojiBox) {
+        emojiBox = document.createElement('span');
+        emojiBox.classList.add('emojibox');
+        document.body.appendChild(emojiBox);
+        
+        emojiBoxes[index] = emojiBox;
+    }
+
+    emojiBox.innerHTML = emoji;
+    emojiBox.style.top = `${y - topAdjustment}px`;
+    emojiBox.style.left = `${x}px`;
+    emojiBox.style.width = `${width}px`;
+    emojiBox.style.height = `${height}px`;
+    emojiBox.style.fontSize = `${fontSize}vh`;
+}
+
+function cleanupBoxes(numberOfBoxes) {
+    if (emojiBoxes.length > numberOfBoxes) {
+        for (let i = numberOfBoxes; i < emojiBoxes.length; i++) {
+            const emojiBox = emojiBoxes[i];
+            emojiBox.remove();
+        }
+
+        emojiBoxes = emojiBoxes.slice(0, numberOfBoxes);
+    }
+}
+
+function animateFace() {
+    animationTimer = requestAnimationFrame(async () => {
+        if (faceDetectionSupported) {
+            const rawFaces = await faceapi.detectAllFaces(video, faceDetector).withFaceLandmarks().withFaceExpressions();
+            numberOfFaces = rawFaces.length;
+
+            cleanupBoxes(numberOfFaces);
+
+            if (numberOfFaces) {
+                const videoSize = video.getBoundingClientRect();
+
+                const faces = faceapi.resizeResults(rawFaces, {
+                    height: videoSize.height,
+                    width: videoSize.width
+                });
+
+                faces.forEach((face, index) => {
+                    const emotion = face.expressions.asSortedArray()[0];
+                    const expression = emotion.probability > .5 ? emotion.expression : '';
+                    const box = face.detection.box;
+
+                    showEmoji(index, expression, box.left + videoSize.left, box.top, box.height, box.width);
+                });
+            }
+        }
+
+        animateFace();
+    });
+}
 
 function startVideo() {
-  navigator.getUserMedia(
-    { video: {} },
-    stream => video.srcObject = stream,
-    err => console.error(err)
-  )
+    navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user' } }).then(stream => video.srcObject = stream).catch(err => console.error(err))
 }
-/*
-video.addEventListener('play', () => {
-  const canvas = faceapi.createCanvasFromMedia(video)
-  document.body.append(canvas)
-  const displaySize = { width: video.width, height: video.height }
-  faceapi.matchDimensions(canvas, displaySize)
-  setInterval(async () => {
-    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceExpressions()
-    const resizedDetections = faceapi.resizeResults(detections, displaySize)
-    console.log(resizedDetections.expressions)
-    canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
-    faceapi.draw.drawDetections(canvas, resizedDetections)
-    faceapi.draw.drawFaceLandmarks(canvas, resizedDetections)
-    faceapi.draw.drawFaceExpressions(canvas, resizedDetections)
-  }, 100)
-})
-*/
-const emotion_dict = {
-  'happy': "./happy.png",
-  'sad': "./sad.png",
-  "surprised": "./surprised.png",
-  "angry": "./angry.png",
-  "fearful": "./fearful.png",
-  "neutral": "./neutral.png",
-  "disgusted": "./disgusted.png"
+
+function everythingWorked() {
+    faceDetectionSupported = true;
+    startVideo();
 }
-video.addEventListener('play', () =>
-{
-  setInterval(async () => {
-    const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceExpressions()
-    //const resizedDetections = faceapi.resizeResults(detections, displaySize)
-    console.log(detections[0]["expressions"].asSortedArray()[0].expression)
-    const highest_prob = detections[0]["expressions"].asSortedArray()[0].expression
-    //const emotions = detections[0]["expressions"];
-    emoji_img.src = emotion_dict[highest_prob]
-  }, 100)
-})
+
+function somethingFailed(reason) {
+    console.error(reason);
+    faceDetectionSupported = false;
+    startVideo();
+}
+
+video.addEventListener('play', animateFace);
+video.addEventListener('pause', () => cancelAnimationFrame(animationTimer));
+video.addEventListener('error', () => cancelAnimationFrame(animationTimer));
+
+Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
+    faceapi.nets.faceRecognitionNet.loadFromUri('./models'),
+    faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
+    faceapi.nets.faceExpressionNet.loadFromUri('./models')
+]).then(everythingWorked).catch(somethingFailed);
