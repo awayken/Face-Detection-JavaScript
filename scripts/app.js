@@ -4,7 +4,8 @@ let numberOfFaces = 0;
 let emojiBoxes = [];
 
 const video = document.getElementById('webcam');
-const emoji_img = document.getElementById('expression_emoji');
+const screenCanvas = document.getElementById('screen')
+const screen = screenCanvas.getContext('2d');
 
 const emojiMap = {
     happy: '😄',
@@ -16,12 +17,23 @@ const emojiMap = {
     disgusted: '🤢'
 }
 
+const emojiImageMap = {
+    happy: 'images/happy.png',
+    sad: 'images/sad.png',
+    surprised: 'images/surprised.png',
+    angry: 'images/angry.png',
+    fearful: 'images/fearful.png',
+    neutral: 'images/neutral.png',
+    disgusted: 'images/disgusted.png'
+}
+
 const faceDetector = new faceapi.TinyFaceDetectorOptions();
 
-function showEmoji(index, expression, x = 0, y = 0, height, width) {
+function showEmoji(index, expression, x = 0, y = 0, height, width, videoSize) {
     const emoji = emojiMap[expression] || emojiMap.neutral;
-    const topAdjustment = 0;
-    const fontSize = height / 10;
+    const emojiImage = emojiImageMap[expression] || emojiImageMap.neutral;
+    const topAdjustment = 75;
+    const fontSize = height / 8;
 
     let emojiBox = emojiBoxes[index];
 
@@ -34,11 +46,21 @@ function showEmoji(index, expression, x = 0, y = 0, height, width) {
     }
 
     emojiBox.innerHTML = emoji;
-    emojiBox.style.top = `${y - topAdjustment}px`;
-    emojiBox.style.left = `${x}px`;
+    emojiBox.style.top = `${y + topAdjustment}px`;
+    emojiBox.style.left = `${x + videoSize.x}px`;
     emojiBox.style.width = `${width}px`;
     emojiBox.style.height = `${height}px`;
     emojiBox.style.fontSize = `${fontSize}vh`;
+
+    screen.fillText(emoji, x, y - topAdjustment);
+    screen.fillText(emoji, 0, 0);
+    screen.fillText('emoji', 0, 0);
+
+    const image = new Image();
+    image.onload = function() {
+        screen.drawImage(this, x, y, width, height);
+    };
+    image.src = emojiImage;
 }
 
 function cleanupBoxes(numberOfBoxes) {
@@ -54,6 +76,11 @@ function cleanupBoxes(numberOfBoxes) {
 
 function animateFace() {
     animationTimer = requestAnimationFrame(async () => {
+        const videoSize = video.getBoundingClientRect();
+        const screenSize = screenCanvas.getBoundingClientRect();
+
+        screen.drawImage(video, 0, 0);
+        
         if (faceDetectionSupported) {
             const rawFaces = await faceapi.detectAllFaces(video, faceDetector).withFaceLandmarks().withFaceExpressions();
             numberOfFaces = rawFaces.length;
@@ -61,8 +88,6 @@ function animateFace() {
             cleanupBoxes(numberOfFaces);
 
             if (numberOfFaces) {
-                const videoSize = video.getBoundingClientRect();
-
                 const faces = faceapi.resizeResults(rawFaces, {
                     height: videoSize.height,
                     width: videoSize.width
@@ -73,7 +98,7 @@ function animateFace() {
                     const expression = emotion.probability > .5 ? emotion.expression : '';
                     const box = face.detection.box;
 
-                    showEmoji(index, expression, box.left + videoSize.left, box.top, box.height, box.width);
+                    showEmoji(index, expression, box.left, box.top, box.height, box.width, videoSize);
                 });
             }
         }
@@ -83,12 +108,18 @@ function animateFace() {
 }
 
 function startVideo() {
-    navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user' } }).then(stream => video.srcObject = stream).catch(err => console.error(err))
+    return navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: 'user' } }).then(stream => video.srcObject = stream).catch(err => console.error(err))
 }
 
 function everythingWorked() {
     faceDetectionSupported = true;
-    startVideo();
+    startVideo()
+    .then(() => {
+        console.log(screenCanvas.width, screenCanvas.height);
+        screenCanvas.width = video.width;
+        screenCanvas.height = video.height;
+        console.log(screenCanvas.width, screenCanvas.height);
+    });
 }
 
 function somethingFailed(reason) {
