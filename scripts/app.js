@@ -7,8 +7,11 @@ let emojiBoxes = [];
 const video = document.getElementById('webcam');
 
 // Our <canvas> element
-const screenCanvas = document.getElementById('screen')
+const screenCanvas = document.getElementById('screen');
 const screen = screenCanvas.getContext('2d');
+
+// Our snapshot element
+const snapshot = document.getElementById('snapshot');
 
 // Mapping expression to emoji
 const emojiMap = {
@@ -174,10 +177,34 @@ function somethingFailed(reason) {
     startVideo();
 }
 
+function takeSnapshot() {
+    const snap = document.createElement('img');
+    const dataUrl = screenCanvas.toDataURL('image/png');
+
+    snap.setAttribute('src', dataUrl);
+    snap.classList.add('snapshot__image');
+    document.body.appendChild(snap);
+
+    // Post dataUrl to endpoint, I think.
+    // const url = ''
+    // await fetch(url, {
+    //     method: 'POST',
+    //     headers: {
+    //         'Content-Type': 'application/x-www-form-urlencoded'
+    //     },
+    //     body: null
+    // });
+
+    // return await response.json();
+}
+
 // <video> event listeners
 video.addEventListener('play', animateFace);
 video.addEventListener('pause', () => cancelAnimationFrame(animationTimer));
 video.addEventListener('error', () => cancelAnimationFrame(animationTimer));
+
+// Snapshot event listeners
+snapshot.addEventListener('click', takeSnapshot);
 
 // Load all our ML models to kick things off
 Promise.all([

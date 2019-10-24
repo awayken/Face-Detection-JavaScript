@@ -35,3 +35,20 @@ video {
     top: 0;
     z-index: 10;
 }
+
+.snapshot__button {
+    position: fixed;
+    right: 10px;
+    bottom: 10px;
+}
+
+.snapshot__image {
+    border: 3px solid orange;
+    border-radius: 8px;
+    box-shadow: 0 0 8px rgba(0, 0, 0, .7);
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 100;
+}
